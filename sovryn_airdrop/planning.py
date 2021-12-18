@@ -4,7 +4,7 @@ from typing import Set
 import click
 from web3 import Web3
 
-from .cli_utils import bold, echo, hilight
+from .cli_base import cli, bold, echo, hilight, config_file_option
 from .config import Config
 from .tokens import Token, load_token
 from .utils import EventBatchComplete, get_events, get_web3, is_contract, load_abi, retryable
@@ -20,20 +20,6 @@ class TokenHolder:
     @property
     def total_holding_token_balance_wei(self) -> int:
         return self.holding_token_balance_on_account_wei + self.holding_token_balance_on_lp_wei
-
-
-config_file_option = click.option(
-    '-c',
-    '--config-file',
-    required=True,
-    metavar='PATH',
-    help='Path to JSON config file'
-)
-
-
-@click.group('sovryn_airdrop')
-def cli():
-    pass
 
 
 @cli.command()
@@ -243,7 +229,3 @@ def echo_token_info(token: Token, prefix: str):
     click.echo("with ", nl=False)
     click.echo(hilight(f"{token.decimals} "), nl=False)
     click.echo("decimals.")
-
-
-if __name__ == '__main__':
-    cli()

@@ -45,7 +45,7 @@ setup(
             'main = sovryn_airdrop:main',
         ],
         'console_scripts': [
-            'sovryn_airdrop=sovryn_airdrop.main:cli',
+            'sovryn_airdrop=sovryn_airdrop.cli_main:cli',
         ],
     },
 )
