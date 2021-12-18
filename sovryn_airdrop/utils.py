@@ -5,15 +5,16 @@ import json
 import logging
 import os
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from time import sleep
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Protocol, Union
 
 from eth_account.signers.local import LocalAccount
 from eth_typing import AnyAddress
 from eth_utils import to_checksum_address
 from web3 import Web3
-from web3.contract import Contract, ContractEvent, ContractFunction
+from web3.contract import Contract, ContractEvent, ContractFunction, EventData
 from web3.middleware import construct_sign_and_send_raw_middleware, geth_poa_middleware
 
 THIS_DIR = os.path.dirname(__file__)
@@ -89,12 +90,20 @@ def get_erc20_contract(*, token_address: Union[str, AnyAddress], web3: Web3) -> 
     )
 
 
+@dataclass()
+class EventBatchComplete:
+    batch_from_block: int
+    batch_to_block: int
+    batch_events: Iterable[EventData]
+
+
 def get_events(
     *,
     event: ContractEvent,
     from_block: int,
     to_block: int,
-    batch_size: int = None
+    batch_size: int = None,
+    on_batch_complete: Optional[Callable[[EventBatchComplete], None]] = None
 ):
     """Load events in batches"""
     if to_block < from_block:
@@ -118,6 +127,13 @@ def get_events(
         if len(events) > 0:
             logger.info(f'found %s events in batch', len(events))
         ret.extend(events)
+
+        if on_batch_complete:
+            on_batch_complete(EventBatchComplete(
+                batch_from_block=batch_from_block,
+                batch_to_block=batch_to_block,
+                batch_events=events
+            ))
         batch_from_block = batch_to_block + 1
     logger.info(f'found %s events in total', len(ret))
     return ret
@@ -172,7 +188,7 @@ def retryable(*, max_attempts: int = 10):
 @functools.lru_cache()
 def is_contract(*, web3: Web3, address: str) -> bool:
     code = web3.eth.get_code(to_address(address))
-    return code != b'\x00'
+    return code != b'\x00' and code != b''
 
 
 def call_concurrently(*funcs: Union[Callable, ContractFunction], retry: bool = False) -> List[Any]:
@@ -191,4 +207,3 @@ def call_concurrently(*funcs: Union[Callable, ContractFunction], retry: bool = F
         _call = retryable()(_call)
 
     return _call()
-

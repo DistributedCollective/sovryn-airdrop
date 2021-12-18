@@ -7,6 +7,7 @@ with open(os.path.join(here, 'README.md')) as f:
     README = f.read()
 
 requires = [
+    'click',
     'eth-utils',
     'eth-account',
     'eth-typing',
@@ -42,7 +43,7 @@ setup(
             'main = sovryn_airdrop:main',
         ],
         'console_scripts': [
-            'sovryn_airdrop=sovryn_airdrop.cli:main',
+            'sovryn_airdrop=sovryn_airdrop.main:cli',
         ],
     },
 )

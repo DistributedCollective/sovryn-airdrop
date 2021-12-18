@@ -28,7 +28,7 @@
     "name": "approve",
     "outputs": [
       {
-        "name": "success",
+        "name": "",
         "type": "bool"
       }
     ],
@@ -69,7 +69,7 @@
     "name": "transferFrom",
     "outputs": [
       {
-        "name": "success",
+        "name": "",
         "type": "bool"
       }
     ],
@@ -102,7 +102,7 @@
     "name": "balanceOf",
     "outputs": [
       {
-        "name": "",
+        "name": "balance",
         "type": "uint256"
       }
     ],
@@ -139,7 +139,7 @@
     "name": "transfer",
     "outputs": [
       {
-        "name": "success",
+        "name": "",
         "type": "bool"
       }
     ],
@@ -169,5 +169,54 @@
     "payable": false,
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "payable": true,
+    "stateMutability": "payable",
+    "type": "fallback"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "name": "spender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "name": "value",
+        "type": "uint256"
+      }
+    ],
+    "name": "Approval",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "name": "value",
+        "type": "uint256"
+      }
+    ],
+    "name": "Transfer",
+    "type": "event"
   }
 ]
