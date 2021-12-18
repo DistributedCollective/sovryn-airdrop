@@ -7,7 +7,7 @@ from eth_typing import AnyAddress
 from web3 import Web3
 from web3.eth import Contract
 
-from .utils import get_erc20_contract
+from .web3_utils import get_erc20_contract
 
 
 @dataclass

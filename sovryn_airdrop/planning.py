@@ -7,7 +7,7 @@ from web3 import Web3
 from .cli_base import cli, bold, echo, hilight, config_file_option
 from .config import Config
 from .tokens import Token, load_token
-from .utils import EventBatchComplete, get_events, get_web3, is_contract, load_abi, retryable
+from .web3_utils import EventBatchComplete, get_events, get_web3, is_contract, load_abi, retryable
 
 
 @dataclass
@@ -53,13 +53,9 @@ def plan(config_file: str, plan_file: str):
     # Find token holders
     click.echo('Finding non-contract token holders (this might take a while)')
     possible_addresses = set()
-    possible_addresses |= get_possible_token_holders(config, holding_token)
-    possible_addresses |= get_possible_token_holders(config, lp_token)
-    echo(
-        "Found",
-        hilight(len(possible_addresses)),
-        f'possible token holder addresses in total (including contracts).'
-    )
+    possible_addresses |= fetch_possible_token_holders(config, holding_token)
+    possible_addresses |= fetch_possible_token_holders(config, lp_token)
+    echo("Found", hilight(len(possible_addresses)), f'possible token holder addresses in total (including contracts).')
 
     # Find token holder balances
     token_holders = []
@@ -103,31 +99,10 @@ def plan(config_file: str, plan_file: str):
             token_holders.append(token_holder)
 
     token_holders.sort(key=lambda t: t.total_holding_token_balance_wei, reverse=True)
-    total_balance_wei = sum(t.total_holding_token_balance_wei for t in token_holders)
-    echo(
-        bold("Address".ljust(42)),
-        bold(f'{holding_token.symbol} (wei))'.rjust(30)),
-        bold(f'{lp_token.symbol} (wei))'.rjust(30)),
-        bold(f'{holding_token.symbol} on LP (wei))'.rjust(30)),
-        bold(f'{holding_token.symbol} total (wei))'.rjust(30)),
-        bold(f'~{holding_token.symbol} total (decimal))'.rjust(25)),
-    )
-    for token_holder in token_holders:
-        echo(
-            token_holder.address,
-            str(token_holder.holding_token_balance_on_account_wei).rjust(30),
-            str(token_holder.lp_token_balance_on_account_wei).rjust(30),
-            str(token_holder.holding_token_balance_on_lp_wei).rjust(30),
-            str(token_holder.total_holding_token_balance_wei).rjust(30),
-            bold(holding_token.str_amount(token_holder.total_holding_token_balance_wei, 6).rjust(25))
-        )
-    echo(
-        bold("Total balances".ljust(42)),
-        bold(str(sum(t.holding_token_balance_on_account_wei for t in token_holders)).rjust(30)),
-        bold(str(sum(t.lp_token_balance_on_account_wei for t in token_holders)).rjust(30)),
-        bold(str(sum(t.holding_token_balance_on_lp_wei for t in token_holders)).rjust(30)),
-        bold(str(total_balance_wei).rjust(30)),
-        bold(holding_token.str_amount(total_balance_wei, 6).rjust(25))
+    echo_balance_table(
+        holding_token=holding_token,
+        lp_token=lp_token,
+        token_holders=token_holders
     )
 
 
@@ -181,7 +156,7 @@ def fetch_liquidity_pool_data(*, config: Config, holding_token: Token, web3: Web
     return lp_token, holding_token_reserve_balance, total_reserve_balance
 
 
-def get_possible_token_holders(config, token: Token) -> Set[str]:
+def fetch_possible_token_holders(config, token: Token) -> Set[str]:
     possible_addresses = set()
     num_blocks = config.snapshot_block_number - config.first_scanned_block_number
     with click.progressbar(
@@ -229,3 +204,32 @@ def echo_token_info(token: Token, prefix: str):
     click.echo("with ", nl=False)
     click.echo(hilight(f"{token.decimals} "), nl=False)
     click.echo("decimals.")
+
+
+def echo_balance_table(holding_token, lp_token, token_holders):
+    total_balance_wei = sum(t.total_holding_token_balance_wei for t in token_holders)
+    echo(
+        bold("Address".ljust(42)),
+        bold(f'{holding_token.symbol} (wei))'.rjust(30)),
+        bold(f'{lp_token.symbol} (wei))'.rjust(30)),
+        bold(f'{holding_token.symbol} on LP (wei))'.rjust(30)),
+        bold(f'{holding_token.symbol} total (wei))'.rjust(30)),
+        bold(f'~{holding_token.symbol} total (decimal))'.rjust(25)),
+    )
+    for token_holder in token_holders:
+        echo(
+            token_holder.address,
+            str(token_holder.holding_token_balance_on_account_wei).rjust(30),
+            str(token_holder.lp_token_balance_on_account_wei).rjust(30),
+            str(token_holder.holding_token_balance_on_lp_wei).rjust(30),
+            str(token_holder.total_holding_token_balance_wei).rjust(30),
+            bold(holding_token.str_amount(token_holder.total_holding_token_balance_wei, 6).rjust(25))
+        )
+    echo(
+        bold("Total balances".ljust(42)),
+        bold(str(sum(t.holding_token_balance_on_account_wei for t in token_holders)).rjust(30)),
+        bold(str(sum(t.lp_token_balance_on_account_wei for t in token_holders)).rjust(30)),
+        bold(str(sum(t.holding_token_balance_on_lp_wei for t in token_holders)).rjust(30)),
+        bold(str(total_balance_wei).rjust(30)),
+        bold(holding_token.str_amount(total_balance_wei, 6).rjust(25))
+    )

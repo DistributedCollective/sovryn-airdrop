@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from eth_typing import ChecksumAddress
 
-from .utils import to_address
+from .web3_utils import to_address
 
 
 @dataclass
