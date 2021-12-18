@@ -17,6 +17,8 @@ requires = [
 tests_require = [
     'pytest',
     'pytest-cov',
+    'ipython',
+    'ipdb',
 ]
 
 setup(
