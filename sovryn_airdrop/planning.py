@@ -1,9 +1,12 @@
+import os
 from dataclasses import dataclass
 from typing import Set
 
 import click
+from eth_typing import ChecksumAddress
 from web3 import Web3
 
+from .airdrop import Airdrop
 from .cli_base import cli, bold, echo, hilight, config_file_option
 from .config import Config
 from .tokens import Token, load_token
@@ -12,7 +15,7 @@ from .web3_utils import EventBatchComplete, get_events, get_web3, is_contract, l
 
 @dataclass
 class TokenHolder:
-    address: str
+    address: ChecksumAddress
     holding_token_balance_on_account_wei: int
     lp_token_balance_on_account_wei: int
     holding_token_balance_on_lp_wei: int
@@ -31,6 +34,10 @@ def plan(config_file: str, plan_file: str):
     """
     config = Config.from_file(config_file)
     click.echo(f'Planning airdrop with config {config}')
+
+    if os.path.exists(plan_file):
+        click.confirm(f'A plan file already exists at {plan_file!r}, overwrite?', abort=True)
+
     web3 = get_web3(config.rpc_url)
     holding_token = load_token(
         web3=web3,
@@ -105,6 +112,29 @@ def plan(config_file: str, plan_file: str):
         token_holders=token_holders
     )
 
+    total_holding_token_balance_wei = sum(t.total_holding_token_balance_wei for t in token_holders)
+    airdrop = Airdrop(
+        reward_token=reward_token,
+        rewarder_address=config.rewarder_account_address,
+    )
+    current_nonce = 123  # XXX!
+    for token_holder in token_holders:
+        # Calculate proportional reward amount
+        balance_wei = token_holder.total_holding_token_balance_wei
+        reward_amount_wei = config.total_reward_amount_wei * balance_wei // total_holding_token_balance_wei
+        airdrop.add_transaction(
+            to_address=token_holder.address,
+            amount_wei=reward_amount_wei,
+            transaction_nonce=current_nonce
+        )
+        current_nonce += 1
+
+    click.echo("")
+    click.echo("Airdrop plan is as follows:")
+    click.echo(airdrop.as_table())
+    click.echo(f"Saving airdrop plan to {plan_file!r}")
+    airdrop.to_file(plan_file)
+
 
 def fetch_liquidity_pool_data(*, config: Config, holding_token: Token, web3: Web3):
     liquidity_pool = web3.eth.contract(
@@ -153,6 +183,20 @@ def fetch_liquidity_pool_data(*, config: Config, holding_token: Token, web3: Web
         hilight(f'{holding_token_reserve_balance / total_reserve_balance * 100} %'),
         'of the liquidity pool reserve balances.'
     )
+
+    # Printhave this info here because it's a pretty interesting sanity check
+    try:
+        echo(
+            '(So, according to reserve balances,',
+            hilight('1'),
+            lp_token.symbol.replace(holding_token.symbol, '').replace('/', ''),
+            '=',
+            hilight(holding_token_reserve_balance / (total_reserve_balance - holding_token_reserve_balance)),
+            'XUSD)'
+        )
+    except Exception:  # noqa
+        pass
+
     return lp_token, holding_token_reserve_balance, total_reserve_balance
 
 
@@ -210,26 +254,24 @@ def echo_balance_table(holding_token, lp_token, token_holders):
     total_balance_wei = sum(t.total_holding_token_balance_wei for t in token_holders)
     echo(
         bold("Address".ljust(42)),
-        bold(f'{holding_token.symbol} (wei))'.rjust(30)),
-        bold(f'{lp_token.symbol} (wei))'.rjust(30)),
-        bold(f'{holding_token.symbol} on LP (wei))'.rjust(30)),
-        bold(f'{holding_token.symbol} total (wei))'.rjust(30)),
-        bold(f'~{holding_token.symbol} total (decimal))'.rjust(25)),
+        bold(f'{holding_token.symbol}'.rjust(30)),
+        bold(f'{lp_token.symbol}'.rjust(30)),
+        bold(f'{holding_token.symbol} on LP'.rjust(30)),
+        bold(f'{holding_token.symbol} total'.rjust(30)),
     )
+    str_amount = holding_token.str_amount
     for token_holder in token_holders:
         echo(
             token_holder.address,
-            str(token_holder.holding_token_balance_on_account_wei).rjust(30),
-            str(token_holder.lp_token_balance_on_account_wei).rjust(30),
-            str(token_holder.holding_token_balance_on_lp_wei).rjust(30),
-            str(token_holder.total_holding_token_balance_wei).rjust(30),
-            bold(holding_token.str_amount(token_holder.total_holding_token_balance_wei, 6).rjust(25))
+            str_amount(token_holder.holding_token_balance_on_account_wei).rjust(30),
+            str_amount(token_holder.lp_token_balance_on_account_wei).rjust(30),
+            str_amount(token_holder.holding_token_balance_on_lp_wei).rjust(30),
+            bold(str_amount(token_holder.total_holding_token_balance_wei).rjust(30))
         )
     echo(
         bold("Total balances".ljust(42)),
-        bold(str(sum(t.holding_token_balance_on_account_wei for t in token_holders)).rjust(30)),
-        bold(str(sum(t.lp_token_balance_on_account_wei for t in token_holders)).rjust(30)),
-        bold(str(sum(t.holding_token_balance_on_lp_wei for t in token_holders)).rjust(30)),
-        bold(str(total_balance_wei).rjust(30)),
-        bold(holding_token.str_amount(total_balance_wei, 6).rjust(25))
+        bold(str_amount(sum(t.holding_token_balance_on_account_wei for t in token_holders)).rjust(30)),
+        bold(str_amount(sum(t.lp_token_balance_on_account_wei for t in token_holders)).rjust(30)),
+        bold(str_amount(sum(t.holding_token_balance_on_lp_wei for t in token_holders)).rjust(30)),
+        bold(str_amount(total_balance_wei).rjust(30)),
     )

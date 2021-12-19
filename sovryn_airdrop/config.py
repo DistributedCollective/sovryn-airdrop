@@ -18,7 +18,7 @@ class Config:
     first_scanned_block_number: int
 
     @classmethod
-    def from_file(cls, file_path: str):
+    def from_file(cls, file_path: str) -> 'Config':
         with open(file_path) as f:
             raw = json.load(f)
         return cls(
