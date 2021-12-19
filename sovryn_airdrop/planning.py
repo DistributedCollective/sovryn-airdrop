@@ -7,7 +7,7 @@ from eth_typing import ChecksumAddress
 from web3 import Web3
 
 from .airdrop import Airdrop
-from .cli_base import cli, bold, echo, hilight, config_file_option
+from .cli_base import cli, bold, echo, echo_token_info, hilight, config_file_option
 from .config import Config
 from .tokens import Token, load_token
 from .web3_utils import EventBatchComplete, get_events, get_web3, is_contract, load_abi, retryable
@@ -238,16 +238,6 @@ def event_batch_progress_bar_updater(bar, from_block: int):
     def updater(data: EventBatchComplete):
         bar.update(data.batch_to_block - from_block)
     return updater
-
-
-def echo_token_info(token: Token, prefix: str):
-    click.echo(f"{prefix}: ", nl=False)
-    click.echo(hilight(f"{token.name} ({token.symbol}) "), nl=False)
-    click.echo("at address ", nl=False)
-    click.echo(hilight(f"{token.address} "), nl=False)
-    click.echo("with ", nl=False)
-    click.echo(hilight(f"{token.decimals} "), nl=False)
-    click.echo("decimals.")
 
 
 def echo_balance_table(holding_token, lp_token, token_holders):

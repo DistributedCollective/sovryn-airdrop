@@ -3,6 +3,7 @@ from typing import Any
 
 import click
 
+from sovryn_airdrop.tokens import Token
 
 config_file_option = click.option(
     '-c',
@@ -30,3 +31,11 @@ def hilight(text: Any):
     return click.style(str(text), fg='green')
 
 
+def echo_token_info(token: Token, prefix: str):
+    click.echo(f"{prefix}: ", nl=False)
+    click.echo(hilight(f"{token.name} ({token.symbol}) "), nl=False)
+    click.echo("at address ", nl=False)
+    click.echo(hilight(f"{token.address} "), nl=False)
+    click.echo("with ", nl=False)
+    click.echo(hilight(f"{token.decimals} "), nl=False)
+    click.echo("decimals.")

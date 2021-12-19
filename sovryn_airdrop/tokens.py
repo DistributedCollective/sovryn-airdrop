@@ -1,3 +1,4 @@
+import functools
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Union
@@ -31,6 +32,7 @@ class Token:
         return f'{self.decimal_amount(amount_wei):{decimal_places + 9}.{decimal_places}f} {self.symbol}'
 
 
+@functools.lru_cache
 def load_token(*, address: Union[str, AnyAddress], web3: Web3) -> Token:
     contract = get_erc20_contract(
         token_address=address,
