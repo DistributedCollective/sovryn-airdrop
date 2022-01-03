@@ -10,7 +10,7 @@ from .airdrop import Airdrop
 from .cli_base import cli, bold, echo, echo_token_info, hilight, config_file_option
 from .config import Config
 from .tokens import Token, load_token
-from .web3_utils import EventBatchComplete, get_events, get_web3, is_contract, load_abi, retryable
+from .web3_utils import EventBatchComplete, get_events, is_contract, load_abi, retryable
 
 
 @dataclass
@@ -38,17 +38,11 @@ def plan(config_file: str, plan_file: str):
     if os.path.exists(plan_file):
         click.confirm(f'A plan file already exists at {plan_file!r}, overwrite?', abort=True)
 
-    web3 = get_web3(config.rpc_url)
-    holding_token = load_token(
-        web3=web3,
-        address=config.holding_token_address
-    )
+    web3 = config.web3
+    holding_token = config.holding_token
     echo_token_info(holding_token, "Holding token")
 
-    reward_token = load_token(
-        web3=web3,
-        address=config.reward_token_address
-    )
+    reward_token = config.reward_token
     echo_token_info(reward_token, "Reward token")
 
     lp_token, holding_token_reserve_balance, total_reserve_balance = fetch_liquidity_pool_data(
@@ -114,8 +108,7 @@ def plan(config_file: str, plan_file: str):
 
     total_holding_token_balance_wei = sum(t.total_holding_token_balance_wei for t in token_holders)
     airdrop = Airdrop(
-        reward_token=reward_token,
-        rewarder_address=config.rewarder_account_address,
+        config=config
     )
     current_nonce = 123  # XXX!
     for token_holder in token_holders:
@@ -124,7 +117,7 @@ def plan(config_file: str, plan_file: str):
         reward_amount_wei = config.total_reward_amount_wei * balance_wei // total_holding_token_balance_wei
         airdrop.add_transaction(
             to_address=token_holder.address,
-            amount_wei=reward_amount_wei,
+            reward_amount_wei=reward_amount_wei,
             transaction_nonce=current_nonce
         )
         current_nonce += 1
@@ -184,7 +177,7 @@ def fetch_liquidity_pool_data(*, config: Config, holding_token: Token, web3: Web
         'of the liquidity pool reserve balances.'
     )
 
-    # Printhave this info here because it's a pretty interesting sanity check
+    # Print this info here because it's a pretty interesting sanity check
     try:
         echo(
             '(So, according to reserve balances,',
@@ -211,7 +204,7 @@ def fetch_possible_token_holders(config, token: Token) -> Set[str]:
             event=token.contract.events.Transfer,
             from_block=config.first_scanned_block_number,
             to_block=config.snapshot_block_number,
-            batch_size=50,
+            batch_size=1000,
             on_batch_complete=event_batch_progress_bar_updater(bar, config.first_scanned_block_number)
         )
     echo("Found", hilight(len(transfer_events)), f'{token.symbol} Transfer events.')
@@ -236,7 +229,9 @@ def fetch_balance_in_block(*, token: Token, address, block_number: int) -> int:
 def event_batch_progress_bar_updater(bar, from_block: int):
     """Get a callback that can be passed to utils.get_events and that updates a click progress bar"""
     def updater(data: EventBatchComplete):
-        bar.update(data.batch_to_block - from_block)
+        # Update takes the number of items to advance the bar.
+        # Blocks are inclusive, hence + 1
+        bar.update(data.batch_to_block - data.batch_from_block + 1)
     return updater
 
 
