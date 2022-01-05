@@ -24,6 +24,7 @@ class JSONConfig:
     totalRewardAmountWei: Optional[str] = None
     totalRewardAmountDecimal: Optional[str] = None
     minRewardWei: Optional[str] = None
+    liquidityMiningAddress: Optional[str] = None
 
     @classmethod
     def from_file(cls, file_path: str) -> 'JSONConfig':
@@ -48,6 +49,7 @@ class Config:
     min_reward_wei: int
     snapshot_block_number: int
     first_scanned_block_number: int
+    liquidity_mining_address: Optional[str] = None
 
     @property
     def holding_token_address(self) -> ChecksumAddress:
@@ -82,4 +84,9 @@ class Config:
             min_reward_wei=int(raw.minRewardWei) if raw.minRewardWei is not None else 1,
             snapshot_block_number=int(raw.snapshotBlockNumber),
             first_scanned_block_number=int(raw.firstScannedBlockNumber),
+            liquidity_mining_address=(
+                to_address(raw.liquidityMiningAddress)
+                if raw.liquidityMiningAddress
+                else None
+            ),
         )

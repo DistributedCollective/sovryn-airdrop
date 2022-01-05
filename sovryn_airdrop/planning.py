@@ -2,17 +2,18 @@ import os
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Set
+from typing import Optional, Set
 
 import click
 from eth_typing import ChecksumAddress
 from web3 import Web3
+from web3.contract import Contract
 
 from .airdrop import Airdrop
 from .cli_base import cli, bold, echo, echo_token_info, hilight, config_file_option
 from .config import Config
 from .tokens import Token, load_token
-from .web3_utils import EventBatchComplete, get_erc20_contract, get_events, is_contract, load_abi, retryable
+from .web3_utils import EventBatchComplete, get_erc20_contract, get_events, is_contract, load_abi, retryable, to_address
 
 
 @dataclass
@@ -20,6 +21,7 @@ class TokenHolder:
     address: ChecksumAddress
     holding_token_balance_on_account_wei: int
     lp_token_balance_on_account_wei: int
+    lp_token_balance_on_liquidity_mining_wei: int
     holding_token_balance_on_lp_wei: int
 
     @property
@@ -35,7 +37,12 @@ def plan(config_file: str, plan_file: str):
     Plan an airdrop, generating a file that can be used to execute the airdrop.
     """
     config = Config.from_file(config_file)
-    click.echo(f'Planning airdrop with config {config}')
+    echo(f'Planning airdrop with config {config}')
+    echo(
+        'Total reward amount:',
+        hilight(config.reward_token.str_amount(config.total_reward_amount_wei)),
+        hilight(config.reward_token.symbol)
+    )
 
     if os.path.exists(plan_file):
         click.confirm(f'A plan file already exists at {plan_file!r}, overwrite?', abort=True)
@@ -47,7 +54,7 @@ def plan(config_file: str, plan_file: str):
     reward_token = config.reward_token
     echo_token_info(reward_token, "Reward token")
 
-    lp_token, holding_token_reserve_balance, lp_token_total_supply = fetch_liquidity_pool_data(
+    lp_token, liquidity_mining, holding_token_reserve_balance, lp_token_total_supply = fetch_liquidity_pool_data(
         config=config,
         holding_token=holding_token,
         web3=web3
@@ -73,6 +80,14 @@ def plan(config_file: str, plan_file: str):
         label=f'Fetching snapshot balances and filtering out contracts'
     ) as bar:
         for address in bar:
+            # Special cases, though unnecessary if we exclude all contracts anyway
+            if liquidity_mining and address.lower() == liquidity_mining.address.lower():
+                excluded_because['is_special_address'] += 1
+                continue
+            if address.lower() == config.holding_token_liquidity_pool_address:
+                excluded_because['is_special_address'] += 1
+                continue
+
             if is_contract(
                 web3=web3,
                 address=address
@@ -87,14 +102,21 @@ def plan(config_file: str, plan_file: str):
                 address=address,
                 block_number=config.snapshot_block_number
             )
-            lp_token_balance_wei = fetch_balance_in_block(
+            lp_token_balance_on_account_wei = fetch_balance_in_block(
                 token=lp_token,
                 address=address,
                 block_number=config.snapshot_block_number
             )
-            if lp_token_balance_wei == holding_token_balance_wei == 0:
+            lp_token_balance_on_liquidity_mining_wei = fetch_balance_on_liquidity_mining_in_block(
+                pool_token=lp_token,
+                address=address,
+                block_number=config.snapshot_block_number,
+                liquidity_mining=liquidity_mining,
+            )
+            lp_token_balance_wei = lp_token_balance_on_account_wei + lp_token_balance_on_liquidity_mining_wei
+            if lp_token_balance_on_account_wei + lp_token_balance_wei == 0:
                 # The address is not a holder after all
-                #print('zero_balance', address, holding_token_balance_wei, lp_token_balance_wei)
+                #print('zero_balance', address)
                 excluded_because['zero_balance'] += 1
                 continue
 
@@ -106,7 +128,8 @@ def plan(config_file: str, plan_file: str):
             token_holder = TokenHolder(
                 address=address,
                 holding_token_balance_on_account_wei=holding_token_balance_wei,
-                lp_token_balance_on_account_wei=lp_token_balance_wei,
+                lp_token_balance_on_account_wei=lp_token_balance_on_account_wei,
+                lp_token_balance_on_liquidity_mining_wei=lp_token_balance_on_liquidity_mining_wei,
                 holding_token_balance_on_lp_wei=holding_token_balance_on_lp_wei,
             )
             token_holders.append(token_holder)
@@ -229,7 +252,20 @@ def fetch_liquidity_pool_data(*, config: Config, holding_token: Token, web3: Web
         ),
     )
 
-    return lp_token, holding_token_reserve_balance, lp_token_total_supply
+    liquidity_mining = None
+    if config.liquidity_mining_address:
+        liquidity_mining = web3.eth.contract(
+            address=to_address(config.liquidity_mining_address),
+            abi=load_abi('LiquidityMining')
+        )
+        echo(
+            'LiquidityMining at',
+            hilight(config.liquidity_mining_address),
+        )
+    else:
+        echo('Address for LiquidityMining not specified in config, balances from proxy not enabled')
+
+    return lp_token, liquidity_mining, holding_token_reserve_balance, lp_token_total_supply
 
 
 def fetch_possible_token_holders(config, token: Token) -> Set[str]:
@@ -265,6 +301,24 @@ def fetch_balance_in_block(*, token: Token, address, block_number: int) -> int:
     )
 
 
+@retryable()
+def fetch_balance_on_liquidity_mining_in_block(
+    *,
+    pool_token: Token,
+    address,
+    block_number: int,
+    liquidity_mining: Optional[Contract]
+) -> int:
+    if liquidity_mining is None:
+        return 0
+    amount, debt, accumulated = liquidity_mining.functions.getUserInfo(
+        pool_token.contract.address,
+        address
+    ).call(block_identifier=block_number)
+    #print('lm', address, amount, debt, accumulated)
+    return amount
+
+
 def event_batch_progress_bar_updater(bar, from_block: int):
     """Get a callback that can be passed to utils.get_events and that updates a click progress bar"""
     def updater(data: EventBatchComplete):
@@ -280,6 +334,7 @@ def echo_balance_table(holding_token, lp_token, token_holders):
         bold("Address".ljust(42)),
         bold(f'{holding_token.symbol}'.rjust(30)),
         bold(f'{lp_token.symbol}'.rjust(30)),
+        bold(f'{lp_token.symbol} on LM'.rjust(30)),
         bold(f'{holding_token.symbol} on LP'.rjust(30)),
         bold(f'{holding_token.symbol} total'.rjust(30)),
     )
@@ -289,6 +344,7 @@ def echo_balance_table(holding_token, lp_token, token_holders):
             token_holder.address,
             str_amount(token_holder.holding_token_balance_on_account_wei).rjust(30),
             str_amount(token_holder.lp_token_balance_on_account_wei).rjust(30),
+            str_amount(token_holder.lp_token_balance_on_liquidity_mining_wei).rjust(30),
             str_amount(token_holder.holding_token_balance_on_lp_wei).rjust(30),
             bold(str_amount(token_holder.total_holding_token_balance_wei).rjust(30))
         )
@@ -296,6 +352,7 @@ def echo_balance_table(holding_token, lp_token, token_holders):
         bold("Total balances".ljust(42)),
         bold(str_amount(sum(t.holding_token_balance_on_account_wei for t in token_holders)).rjust(30)),
         bold(str_amount(sum(t.lp_token_balance_on_account_wei for t in token_holders)).rjust(30)),
+        bold(str_amount(sum(t.lp_token_balance_on_liquidity_mining_wei for t in token_holders)).rjust(30)),
         bold(str_amount(sum(t.holding_token_balance_on_lp_wei for t in token_holders)).rjust(30)),
         bold(str_amount(total_balance_wei).rjust(30)),
     )
