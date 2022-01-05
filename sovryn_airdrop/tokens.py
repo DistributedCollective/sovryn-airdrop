@@ -28,10 +28,8 @@ class Token:
         else:
             return format(round(self.decimal_amount(amount_wei), decimal_places), 'f')
 
-    def formatted_amount(self, amount_wei: int, decimal_places=None):
-        strip_trailing_zeros = False
+    def formatted_amount(self, amount_wei: int, decimal_places=None, *, strip_trailing_zeros=False):
         if decimal_places is None:
-            strip_trailing_zeros = True
             decimal_places = 18
         ret = f'{self.decimal_amount(amount_wei):{decimal_places + 9}.{decimal_places}f}'
         if strip_trailing_zeros:
