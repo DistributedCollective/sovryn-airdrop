@@ -148,6 +148,25 @@ def plan(config_file: str, plan_file: str):
         token_holders=token_holders
     )
 
+    total_holding_token_balance_wei = sum(t.total_holding_token_balance_wei for t in token_holders)
+    airdrop = Airdrop(
+        config=config
+    )
+    current_nonce = web3.eth.get_transaction_count(config.rewarder_account_address)
+    for token_holder in token_holders:
+        # Calculate proportional reward amount
+        balance_wei = token_holder.total_holding_token_balance_wei
+        reward_amount_wei = config.total_reward_amount_wei * balance_wei // total_holding_token_balance_wei
+        if reward_amount_wei < config.min_reward_wei:
+            excluded_addresses[token_holder.address] = 'too_low_reward'
+            continue
+        airdrop.add_transaction(
+            to_address=token_holder.address,
+            reward_amount_wei=reward_amount_wei,
+            transaction_nonce=current_nonce
+        )
+        current_nonce += 1
+
     echo(
         '\nA total of',
         hilight(len(excluded_addresses)),
@@ -159,25 +178,6 @@ def plan(config_file: str, plan_file: str):
             address.ljust(48),
             reason,
         )
-    echo('')
-
-    total_holding_token_balance_wei = sum(t.total_holding_token_balance_wei for t in token_holders)
-    airdrop = Airdrop(
-        config=config
-    )
-    current_nonce = web3.eth.get_transaction_count(config.rewarder_account_address)
-    for token_holder in token_holders:
-        # Calculate proportional reward amount
-        balance_wei = token_holder.total_holding_token_balance_wei
-        reward_amount_wei = config.total_reward_amount_wei * balance_wei // total_holding_token_balance_wei
-        if reward_amount_wei < config.min_reward_wei:
-            continue
-        airdrop.add_transaction(
-            to_address=token_holder.address,
-            reward_amount_wei=reward_amount_wei,
-            transaction_nonce=current_nonce
-        )
-        current_nonce += 1
 
     click.echo("")
     click.echo("Airdrop plan is as follows:")
