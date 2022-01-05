@@ -89,7 +89,7 @@ def plan(config_file: str, plan_file: str):
             if liquidity_mining and address.lower() == liquidity_mining.address.lower():
                 excluded_because['is_special_address'] += 1
                 continue
-            if address.lower() == config.holding_token_liquidity_pool_address:
+            if address.lower() == config.holding_token_liquidity_pool_address.lower():
                 excluded_because['is_special_address'] += 1
                 continue
 
