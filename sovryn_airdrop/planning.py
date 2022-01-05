@@ -43,6 +43,11 @@ def plan(config_file: str, plan_file: str):
         hilight(config.reward_token.str_amount(config.total_reward_amount_wei)),
         hilight(config.reward_token.symbol)
     )
+    echo(
+        'Minimum reward:',
+        hilight(config.reward_token.str_amount(config.min_reward_wei)),
+        hilight(config.reward_token.symbol)
+    )
 
     if os.path.exists(plan_file):
         click.confirm(f'A plan file already exists at {plan_file!r}, overwrite?', abort=True)
