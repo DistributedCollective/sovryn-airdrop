@@ -31,6 +31,9 @@ class Token:
     def formatted_amount(self, amount_wei: int, decimal_places=6):
         return f'{self.decimal_amount(amount_wei):{decimal_places + 9}.{decimal_places}f} {self.symbol}'
 
+    def wei_amount(self, amount_decimal: Union[Decimal, int]) -> int:
+        return int(amount_decimal * (Decimal(10) ** self.decimals))
+
 
 @functools.lru_cache
 def load_token(*, address: Union[str, AnyAddress], web3: Web3) -> Token:
