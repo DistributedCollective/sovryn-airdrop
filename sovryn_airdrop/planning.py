@@ -79,7 +79,7 @@ def plan(config_file: str, plan_file: str):
 
     # Find token holder balances
     token_holders = []
-    excluded_because = Counter()
+    excluded_addresses = dict()
     with click.progressbar(
         possible_addresses,
         label=f'Fetching snapshot balances and filtering out contracts'
@@ -87,10 +87,10 @@ def plan(config_file: str, plan_file: str):
         for address in bar:
             # Special cases, though unnecessary if we exclude all contracts anyway
             if liquidity_mining and address.lower() == liquidity_mining.address.lower():
-                excluded_because['is_special_address'] += 1
+                excluded_addresses[address] = 'is_special_address'
                 continue
             if address.lower() == config.holding_token_liquidity_pool_address.lower():
-                excluded_because['is_special_address'] += 1
+                excluded_addresses[address] = 'is_special_address'
                 continue
 
             if is_contract(
@@ -99,7 +99,7 @@ def plan(config_file: str, plan_file: str):
             ):
                 # We don't want to include contract addresses here
                 #print('\nis_contract', address)
-                excluded_because['is_contract'] += 1
+                excluded_addresses[address] = 'is_contract'
                 continue
 
             holding_token_balance_wei = fetch_balance_in_block(
@@ -119,10 +119,10 @@ def plan(config_file: str, plan_file: str):
                 liquidity_mining=liquidity_mining,
             )
             lp_token_balance_wei = lp_token_balance_on_account_wei + lp_token_balance_on_liquidity_mining_wei
-            if lp_token_balance_on_account_wei + lp_token_balance_wei == 0:
+            if holding_token_balance_wei + lp_token_balance_on_account_wei + lp_token_balance_wei == 0:
                 # The address is not a holder after all
                 #print('zero_balance', address)
-                excluded_because['zero_balance'] += 1
+                excluded_addresses[address] = 'zero_balance'
                 continue
 
             # Calculate holding token balance on liquidity pool by multiplying LP token balance in user wallet with the
@@ -140,7 +140,6 @@ def plan(config_file: str, plan_file: str):
             token_holders.append(token_holder)
 
     echo("Found", hilight(len(token_holders)), f'actual token holders (excluding contracts and zero balances)')
-    echo('Reasons excluded:', excluded_because)
 
     token_holders.sort(key=lambda t: t.total_holding_token_balance_wei, reverse=True)
     echo_balance_table(
@@ -148,6 +147,19 @@ def plan(config_file: str, plan_file: str):
         lp_token=lp_token,
         token_holders=token_holders
     )
+
+    echo(
+        '\nA total of',
+        hilight(len(excluded_addresses)),
+        'addresses were excluded.'
+    )
+    echo('Summary of exclusion reasons:', Counter(excluded_addresses.values()))
+    for address, reason in excluded_addresses.items():
+        echo(
+            address.ljust(48),
+            reason,
+        )
+    echo('')
 
     total_holding_token_balance_wei = sum(t.total_holding_token_balance_wei for t in token_holders)
     airdrop = Airdrop(
