@@ -30,7 +30,7 @@ class Token:
 
     def formatted_amount(self, amount_wei: int, decimal_places=None, *, strip_trailing_zeros=False):
         if decimal_places is None:
-            decimal_places = 18
+            decimal_places = self.decimals
         ret = f'{self.decimal_amount(amount_wei):{decimal_places + 9}.{decimal_places}f}'
         if strip_trailing_zeros:
             ret = ret.rstrip('0')
