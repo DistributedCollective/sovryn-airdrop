@@ -24,12 +24,20 @@ class Token:
 
     def str_amount(self, amount_wei: int, decimal_places=None) -> str:
         if decimal_places is None:
-            return str(self.decimal_amount(amount_wei))
+            return format(self.decimal_amount(amount_wei), 'f')
         else:
-            return str(round(self.decimal_amount(amount_wei), decimal_places))
+            return format(round(self.decimal_amount(amount_wei), decimal_places), 'f')
 
-    def formatted_amount(self, amount_wei: int, decimal_places=6):
-        return f'{self.decimal_amount(amount_wei):{decimal_places + 9}.{decimal_places}f} {self.symbol}'
+    def formatted_amount(self, amount_wei: int, decimal_places=None):
+        strip_trailing_zeros = False
+        if decimal_places is None:
+            strip_trailing_zeros = True
+            decimal_places = 18
+        ret = f'{self.decimal_amount(amount_wei):{decimal_places + 9}.{decimal_places}f}'
+        if strip_trailing_zeros:
+            ret = ret.rstrip('0')
+        ret = f' {ret} {self.symbol}'
+        return ret
 
     def wei_amount(self, amount_decimal: Union[Decimal, int]) -> int:
         return int(amount_decimal * (Decimal(10) ** self.decimals))
