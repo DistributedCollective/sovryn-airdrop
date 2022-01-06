@@ -8,6 +8,7 @@ from eth_utils import to_hex
 
 from .config import Config
 from .tokens import Token
+from .web3_utils import retryable
 
 
 class Airdrop:
@@ -128,19 +129,21 @@ class AirdropTransaction:
             raise ValueError("Already sent")
         config = self.airdrop.config
         reward_token_contract = config.reward_token.contract
-        # TODO: ????
         tx_hash = reward_token_contract.functions.transfer(
             self.to_address,
             self.reward_amount_wei,
-        #).transact({'from': config.rewarder_account_address})
-        ).transact()
+        ).transact({'from': config.rewarder_account_address})
         self.transaction_hash = to_hex(tx_hash)
 
     def verify(self):
-        receipt = self.airdrop.config.web3.eth.wait_for_transaction_receipt(self.transaction_hash, timeout=600)
+        receipt = self._verify_with_retries()
         if not receipt.status:
             raise ValueError(f'Transaction failed: {self.as_row()}')
         return receipt
+
+    @retryable()
+    def _verify_with_retries(self):
+        return self.airdrop.config.web3.eth.wait_for_transaction_receipt(self.transaction_hash, timeout=600)
 
 
 def airdrop_row_repr(to_address, reward_amount_wei, transaction_nonce, transaction_hash) -> str:
