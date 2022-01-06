@@ -35,7 +35,17 @@ def get_web3(rpc_url: str, *, account: Optional[LocalAccount] = None) -> Web3:
     # Refer to http://web3py.readthedocs.io/en/stable/middleware.html#geth-style-proof-of-authority for more details.
     web3.middleware_onion.inject(geth_poa_middleware, layer=0)
 
+    if web3.eth.chain_id in (30, 31):
+        web3.eth.set_gas_price_strategy(
+            create_constant_gas_price_strategy(Web3.toWei(0.065, 'gwei'))
+        )
     return web3
+
+
+def create_constant_gas_price_strategy(wei: int):
+    def gas_price_strategy(web3, transaction_params):
+        return transaction_params.get('gasPrice', wei)
+    return gas_price_strategy
 
 
 def set_web3_account(*, web3: Web3, account: LocalAccount) -> Web3:
