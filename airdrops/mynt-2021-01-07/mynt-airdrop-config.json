@@ -1,0 +1,12 @@
+{
+  "rpcUrl": "http://localhost:4444",
+  "holdingTokenAddress": "0x2e6B1d146064613E8f521Eb3c6e65070af964EbB",
+  "holdingTokenLiquidityPoolAddress": "0x3a18e61d9c9f1546dea013478dd653c793098f17",
+  "liquidityMiningAddress": "0xf730af26e87D9F55E46A6C447ED2235C385E55e0",
+  "rewardTokenAddress": "0x2e6B1d146064613E8f521Eb3c6e65070af964EbB",
+  "rewarderAccountAddress": "0x98B94f8aC1246609a7F0F8A5ec72F5aeb789bA4e",
+  "totalRewardAmountWei": "1111112053928883000000000",
+  "minRewardWei": "10000000000000000000",
+  "snapshotBlockNumber": 3976082,
+  "firstScannedBlockNumber": 3831000
+}
