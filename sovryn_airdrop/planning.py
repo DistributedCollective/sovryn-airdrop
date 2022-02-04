@@ -86,10 +86,11 @@ def plan(config_file: str, plan_file: str):
     ) as bar:
         for address in bar:
             # Special cases, though unnecessary if we exclude all contracts anyway
-            if liquidity_mining and address.lower() == liquidity_mining.address.lower():
-                excluded_addresses[address] = 'is_special_address'
-                continue
-            if address.lower() == config.holding_token_liquidity_pool_address.lower():
+            if (
+                (liquidity_mining and address.lower() == liquidity_mining.address.lower()) or
+                address.lower() == config.holding_token_liquidity_pool_address.lower() or
+                address.lower() == config.rewarder_account_address.lower()
+            ):
                 excluded_addresses[address] = 'is_special_address'
                 continue
 
